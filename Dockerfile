@@ -1,1 +1,1 @@
-FROM itzg/minecraft-server:1.21.5
+FROM itzg/minecraft-server:latest
