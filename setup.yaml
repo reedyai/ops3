@@ -7,7 +7,7 @@
     aws_region: us-east-1
 
     ecr_registry: 619786279459.dkr.ecr.us-east-1.amazonaws.com/minecraft-server
-    minecraft_image: minecraft-server
+    minecraft_image: latest
     minecraft_tag: "1.21.5"
 
     container_name: minecraft
