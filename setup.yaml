@@ -1,0 +1,112 @@
+---
+- name: Configure Minecraft server
+  hosts: server
+  become: true
+
+  vars:
+    aws_region: us-east-1
+
+    ecr_registry: 619786279459.dkr.ecr.us-east-1.amazonaws.com/minecraft-server
+    minecraft_image: minecraft-server
+    minecraft_tag: "1.21.5"
+
+    container_name: minecraft
+
+    data_mount: /data
+    s3_backup_bucket: s3://minecraft-backups-reedyai/world
+
+    memory: 4G
+    jvm_opts: "-Xms2G -Xmx4G"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - docker.io
+          - awscli
+        state: present
+
+    - name: Ensure Docker is running
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # -----------------------------
+    # DATA DIRECTORY (OPTION 1 FIX)
+    # -----------------------------
+    - name: Create Minecraft data directory
+      file:
+        path: "{{ data_mount }}"
+        state: directory
+        mode: "0755"
+
+    - name: Restore world data from S3]
+      shell: |
+        aws s3 sync {{ s3_backup_bucket }} {{ data_mount }}
+      args:
+        creates: "{{ data_mount }}/world"
+
+    # -----------------------------
+    # ECR AUTH + IMAGE PULL
+    # -----------------------------
+    - name: Authenticate Docker to ECR (instance role)
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} \
+        | docker login --username AWS --password-stdin {{ ecr_registry }}
+      changed_when: false
+
+    - name: Pull pinned Minecraft image
+      community.docker.docker_image:
+        name: "{{ ecr_registry }}/{{ minecraft_image }}"
+        tag: "{{ minecraft_tag }}"
+        source: pull
+
+    # -----------------------------
+    # CONTAINER (IDEMPOTENT FIXED)
+    # -----------------------------
+    - name: Stop existing Minecraft container (if running)
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: stopped
+      ignore_errors: true
+
+    - name: Remove old Minecraft container (clean restart safety)
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Start Minecraft container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ ecr_registry }}/{{ minecraft_image }}:{{ minecraft_tag }}"
+        state: started
+        restart_policy: unless-stopped
+
+        published_ports:
+          - "25565:25565"
+
+        volumes:
+          - "{{ data_mount }}:/data"
+
+        env:
+          EULA: "TRUE"
+          MEMORY: "{{ memory }}"
+          JVM_OPTS: "{{ jvm_opts }}"
+
+    # -----------------------------
+    # STARTUP WAIT (FIXED RELIABILITY)
+    # -----------------------------
+    - name: Wait for Minecraft server startup
+      shell: docker logs {{ container_name }} 2>&1 | grep -q "Done"
+      register: minecraft_ready
+      retries: 18
+      delay: 10
+      until: minecraft_ready.rc == 0
+      changed_when: false
