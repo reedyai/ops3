@@ -8,7 +8,6 @@
 
     ecr_registry: 619786279459.dkr.ecr.us-east-1.amazonaws.com/minecraft-server
     minecraft_image: latest
-    minecraft_tag: "1.21.5"
 
     container_name: minecraft
 
@@ -63,8 +62,7 @@
 
     - name: Pull pinned Minecraft image
       community.docker.docker_image:
-        name: "{{ ecr_registry }}/{{ minecraft_image }}"
-        tag: "{{ minecraft_tag }}"
+        name: "{{ ecr_registry }}:{{ minecraft_image }}"
         source: pull
 
     # -----------------------------
@@ -85,7 +83,7 @@
     - name: Start Minecraft container
       community.docker.docker_container:
         name: "{{ container_name }}"
-        image: "{{ ecr_registry }}/{{ minecraft_image }}:{{ minecraft_tag }}"
+        image: "{{ ecr_registry }}:{{ minecraft_image }}"
         state: started
         restart_policy: unless-stopped
 
