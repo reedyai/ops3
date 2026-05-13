@@ -1,6 +1,6 @@
 ---
 - name: Configure Minecraft server
-  hosts: server
+  hosts: all
   become: true
 
   vars:
@@ -45,7 +45,7 @@
         state: directory
         mode: "0755"
 
-    - name: Restore world data from S3]
+    - name: Restore world data from S3
       shell: |
         aws s3 sync {{ s3_backup_bucket }} {{ data_mount }}
       args:

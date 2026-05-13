@@ -74,23 +74,23 @@ resource "aws_instance" "mc_server" {
 
 
 # Run Ansible after Terraform provisioning
-#resource "null_resource" "ansible" {
+resource "null_resource" "ansible" {
 
-# depends_on = [
-#    aws_instance.mc_server
-#  ]
-#
-#  provisioner "local-exec" {
-#
-#    command = <<EOT
-#sleep 60
+ depends_on = [
+    aws_instance.mc_server
+  ]
 
-#ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook \
-#  -i '${aws_instance.mc_server.public_ip},' \
-#  --user ubuntu \
-#  --private-key ~/.ssh/${var.key_name}.pem \
-#  playbook.yml
-#EOT
-#
-#  }
-#}
+  provisioner "local-exec" {
+
+    command = <<EOT
+sleep 60
+
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook \
+  -i '${aws_instance.mc_server.public_ip},' \
+  --user ubuntu \
+  --private-key ~/Downloads/${var.key_name}.pem \
+  setup.yaml
+EOT
+
+  }
+}
