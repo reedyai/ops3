@@ -39,3 +39,34 @@ jobs:
         run: |
           docker push \
           ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+
+      - name: Smoke test Minecraft server
+        run: |
+          set -e
+
+          IMAGE="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.ref_name }}"
+
+          echo "Starting container..."
+          CID=$(docker run -d -p 25565:25565 $IMAGE)
+
+          echo "Waiting for Minecraft to initialize..."
+
+          FOUND=0
+
+          for i in $(seq 1 12); do
+            sleep 10
+            if docker logs $CID 2>&1 | grep -q "Done"; then
+              echo "Minecraft started successfully"
+              FOUND=1
+              break
+            fi
+          done
+
+          echo "Stopping container..."
+          docker stop $CID || true
+
+          if [ $FOUND -ne 1 ]; then
+            echo "Smoke test failed: Minecraft did not start"
+            docker logs $CID || true
+            exit 1
+          fi
