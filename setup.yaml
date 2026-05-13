@@ -48,8 +48,6 @@
     - name: Restore world data from S3
       shell: |
         aws s3 sync {{ s3_backup_bucket }} {{ data_mount }}
-      args:
-        creates: "{{ data_mount }}/world"
 
     # -----------------------------
     # ECR AUTH + IMAGE PULL
@@ -109,3 +107,43 @@
       delay: 10
       until: minecraft_ready.rc == 0
       changed_when: false
+ # -----------------------------
+    # SHUTDOWN BACKUP SYSTEM
+    # -----------------------------
+    - name: Create Minecraft backup script
+      copy:
+        dest: /usr/local/bin/minecraft-backup.sh
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          set -e
+
+          echo "Stopping Minecraft container..."
+          docker stop {{ container_name }} || true
+
+          echo "Syncing world data to S3..."
+          aws s3 sync {{ data_mount }} {{ s3_backup_bucket }}
+
+          echo "Backup complete."
+
+    - name: Create systemd service for shutdown backup
+      copy:
+        dest: /etc/systemd/system/minecraft-backup.service
+        content: |
+          [Unit]
+          Description=Minecraft S3 Backup Service
+          DefaultDependencies=no
+          Before=shutdown.target reboot.target halt.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/minecraft-backup.sh
+
+          [Install]
+          WantedBy=halt.target reboot.target shutdown.target
+
+    - name: Enable backup service
+      systemd:
+        name: minecraft-backup.service
+        enabled: true
+        daemon_reload: true
