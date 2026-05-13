@@ -95,7 +95,7 @@
 
         env:
           EULA: "TRUE"
-          MOTD: "Reedyai"
+          MOTD: Reedyai
           MEMORY: "{{ memory }}"
           JVM_OPTS: "{{ jvm_opts }}"
 
