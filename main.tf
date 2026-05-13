@@ -4,7 +4,8 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-
+    
+    #for running ansible
     null = {
       source = "hashicorp/null"
       version = "~> 3.2"
@@ -14,7 +15,6 @@ terraform {
 
 provider "aws" {
   region = "us-east-1"
-  # If you configured a named profile above, add: profile = "cs312"
 }
 
 # Use the default VPC instead of creating a new one
@@ -22,7 +22,7 @@ data "aws_vpc" "default" {
   default = true
 }
 
-# Security Group for the control node: SSH access from your laptop
+# Security Group for the minecraft server: SSH for maintainece and 25565 for minecraft
 resource "aws_security_group" "server" {
   name        = "mc_sec_group"
   description = "server: SSH and minecraft"
@@ -56,7 +56,7 @@ resource "aws_security_group" "server" {
 }
 
 
-# Minecraft
+# Minecraft server ec2 instance
 resource "aws_instance" "mc_server" {
   ami                    = var.ami_id
   instance_type          = var.instance_type

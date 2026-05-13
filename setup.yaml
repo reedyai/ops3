@@ -36,9 +36,7 @@
         enabled: true
         state: started
 
-    # -----------------------------
-    # DATA DIRECTORY (OPTION 1 FIX)
-    # -----------------------------
+    # Sync with s3
     - name: Create Minecraft data directory
       file:
         path: "{{ data_mount }}"
@@ -49,23 +47,20 @@
       shell: |
         aws s3 sync {{ s3_backup_bucket }} {{ data_mount }}
 
-    # -----------------------------
-    # ECR AUTH + IMAGE PULL
-    # -----------------------------
+    # Connect to ecr
     - name: Authenticate Docker to ECR (instance role)
       shell: |
         aws ecr get-login-password --region {{ aws_region }} \
         | docker login --username AWS --password-stdin {{ ecr_registry }}
       changed_when: false
 
+    # Pull the latest image
     - name: Pull pinned Minecraft image
       community.docker.docker_image:
         name: "{{ ecr_registry }}:{{ minecraft_image }}"
         source: pull
 
-    # -----------------------------
-    # CONTAINER (IDEMPOTENT FIXED)
-    # -----------------------------
+    # If minecraft was already running on the machine stop it
     - name: Stop existing Minecraft container (if running)
       community.docker.docker_container:
         name: "{{ container_name }}"
@@ -78,6 +73,7 @@
         state: absent
       ignore_errors: true
 
+    # Run minecraft in a container
     - name: Start Minecraft container
       community.docker.docker_container:
         name: "{{ container_name }}"
@@ -97,9 +93,7 @@
           MEMORY: "{{ memory }}"
           JVM_OPTS: "{{ jvm_opts }}"
 
-    # -----------------------------
-    # STARTUP WAIT (FIXED RELIABILITY)
-    # -----------------------------
+    # Wait for it to start
     - name: Wait for Minecraft server startup
       shell: docker logs {{ container_name }} 2>&1 | grep -q "Done"
       register: minecraft_ready
@@ -107,9 +101,8 @@
       delay: 10
       until: minecraft_ready.rc == 0
       changed_when: false
- # -----------------------------
-    # SHUTDOWN BACKUP SYSTEM
-    # -----------------------------
+
+    # Create a script that will backuop the world to s3
     - name: Create Minecraft backup script
       copy:
         dest: /usr/local/bin/minecraft-backup.sh
@@ -126,6 +119,7 @@
 
           echo "Backup complete."
 
+    # Have systemd run the script above when minecraft stops running
     - name: Create systemd service for shutdown backup
       copy:
         dest: /etc/systemd/system/minecraft-backup.service
