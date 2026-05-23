@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minecraft-config
+  namespace: minecraft
+
+data:
+  EULA: "TRUE"
+  MOTD: "Reedyai"
+  MEMORY: "4G"
+  JVM_OPTS: "-Xms2G -Xmx4G"

@@ -89,7 +89,7 @@ ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook \
   -i '${aws_instance.mc_server.public_ip},' \
   --user ubuntu \
   --private-key ~/Downloads/${var.key_name}.pem \
-  setup.yaml
+  ansible/setup-k3s.yaml
 EOT
 
   }

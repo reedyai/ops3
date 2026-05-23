@@ -1,0 +1,83 @@
+---
+- name: Configure k3s Minecraft server
+  hosts: all
+  become: true
+
+  vars:
+    aws_region: us-east-1
+
+    ecr_registry: 619786279459.dkr.ecr.us-east-1.amazonaws.com
+    minecraft_image: minecraft-server:v1
+
+    s3_backup_bucket: s3://minecraft-backups-reedyai/world
+
+  tasks:
+
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - unzip
+          - awscli
+        state: present
+
+    - name: Install k3s
+      shell: |
+        curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s node ready
+      shell: |
+        kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: result
+      retries: 10
+      delay: 15
+      until: result.rc == 0
+
+    - name: Create Minecraft data directory
+      file:
+        path: /minecraft-data
+        state: directory
+        mode: "0755"
+
+    - name: Restore world data from S3
+      shell: |
+        aws s3 sync {{ s3_backup_bucket }} /minecraft-data
+
+    - name: Create k3s registries config
+      copy:
+        dest: /etc/rancher/k3s/registries.yaml
+        content: |
+          configs:
+            "{{ ecr_registry }}":
+              auth:
+                username: AWS
+                password: "{{ lookup('pipe', 'aws ecr get-login-password --region ' + aws_region) }}"
+
+    - name: Restart k3s
+      systemd:
+        name: k3s
+        state: restarted
+
+    - name: Copy Kubernetes manifests
+      copy:
+        src: ../k3s/
+        dest: /tmp/k3s/
+
+    - name: Apply namespace
+      shell: kubectl apply -f /tmp/k3s/namespace.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Apply Kubernetes manifests
+      shell: kubectl apply -f /tmp/k3s/
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml

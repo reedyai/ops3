@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: minecraft-backup
+  namespace: minecraft
+
+spec:
+  schedule: "0 */6 * * *"
+
+  jobTemplate:
+    spec:
+      template:
+        spec:
+
+          restartPolicy: OnFailure
+
+          containers:
+            - name: backup
+
+              image: amazon/aws-cli
+
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  aws s3 sync /data s3://minecraft-backups-reedyai/world
+
+              volumeMounts:
+                - name: minecraft-storage
+                  mountPath: /data
+
+          volumes:
+            - name: minecraft-storage
+              persistentVolumeClaim:
+                claimName: minecraft-data
